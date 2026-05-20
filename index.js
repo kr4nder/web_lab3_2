@@ -1,57 +1,59 @@
 const express = require('express');
-const mongoose = require('mongoose');
+const { MongoClient } = require('mongodb');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
-const LOGIN = 'krander';
-
-// чтобы читать x-www-form-urlencoded
+// middleware для чтения x-www-form-urlencoded
 app.use(express.urlencoded({ extended: true }));
-
-// схема
-const UserSchema = new mongoose.Schema({
-    login: String,
-    password: String
-});
-
-// модель
-const User = mongoose.model('User', UserSchema, 'users');
 
 // /login/
 app.get('/login/', (req, res) => {
+
     res.type('text/plain');
-    res.send(LOGIN);
+    res.send('krander');
 });
 
 // /insert/
 app.post('/insert/', async (req, res) => {
+
+    // переменная для подключения к mongodb
+    let client;
+
     try {
+
+        // получаем данные из тела запроса
         const { login, password, URL } = req.body;
 
-        // подключение к mongodb
-        await mongoose.connect(URL, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-        });
+        // подключаемся к mongodb
+        client = await new MongoClient(URL).connect();
 
-        // создание документа
-        const user = new User({
+        // получаем базу данных
+        const db = client.db();
+
+        // добавляем документ в коллекцию users
+        await db.collection('users').insertOne({
             login,
             password
         });
 
-        await user.save();
-
+        // отправляем успешный ответ
         res.type('text/plain');
         res.send('ok');
 
     } catch (e) {
         console.error(e);
-
         res.status(500).send('error');
+
+    } finally {
+
+        // закрываем подключение к mongodb
+        if (client) {
+            await client.close();
+        }
     }
 });
+
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
